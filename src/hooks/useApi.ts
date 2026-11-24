@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import { useStore } from '@/lib/store';
+import { handleDemoApi } from '@/lib/demoFallback';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
@@ -11,12 +12,23 @@ interface ApiOptions {
   params?: Record<string, string | number | undefined>;
 }
 
+const IS_STATIC = process.env.NEXT_PUBLIC_STATIC_EXPORT === 'true';
+
 export function useApi() {
   const sessionToken = useStore((s) => s.sessionToken);
 
   const api = useCallback(
     async <T = unknown>(endpoint: string, options: ApiOptions = {}): Promise<T> => {
       const { method = 'GET', body, params } = options;
+
+      if (IS_STATIC) {
+        return handleDemoApi<T>(
+          endpoint,
+          method,
+          body as Record<string, unknown> | undefined,
+          params
+        );
+      }
 
       let url = `/api/${endpoint}`;
       if (params) {
@@ -37,18 +49,39 @@ export function useApi() {
         headers['Authorization'] = `Bearer ${sessionToken}`;
       }
 
-      const res = await fetch(url, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : undefined,
-      });
+      try {
+        const res = await fetch(url, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : undefined,
+        });
 
-      if (!res.ok) {
-        const error = await res.json().catch(() => ({ message: 'Network error' }));
-        throw new Error(error.message || `API error: ${res.status}`);
+        if (res.status === 404) {
+          return handleDemoApi<T>(
+            endpoint,
+            method,
+            body as Record<string, unknown> | undefined,
+            params
+          );
+        }
+
+        if (!res.ok) {
+          const error = await res.json().catch(() => ({ message: 'Network error' }));
+          throw new Error(error.message || `API error: ${res.status}`);
+        }
+
+        return res.json();
+      } catch (err) {
+        if (err instanceof TypeError) {
+          return handleDemoApi<T>(
+            endpoint,
+            method,
+            body as Record<string, unknown> | undefined,
+            params
+          );
+        }
+        throw err;
       }
-
-      return res.json();
     },
     [sessionToken]
   );

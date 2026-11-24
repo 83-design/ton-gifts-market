@@ -10,6 +10,7 @@ import { ActivityScreen } from '@/screens/ActivityScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useStore } from '@/lib/store';
+import { handleDemoApi } from '@/lib/demoFallback';
 
 export default function HomePage() {
   const { isReady, initData } = useTelegram();
@@ -24,35 +25,55 @@ export default function HomePage() {
 
     async function authenticate() {
       try {
-        const res = await fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            initData: initData || '',
-            ...(!initData && {
-              devUser: {
-                id: 123456789,
-                first_name: 'Alex',
-                last_name: 'Volkov',
-                username: 'developer',
-              },
-            }),
-          }),
-        });
+        let data: {
+          token?: string;
+          userId?: string;
+          telegramUser?: { id: number; first_name: string; last_name?: string; username?: string };
+          balanceTon?: number;
+          balanceGram?: number;
+        } | null = null;
 
-        if (res.ok) {
-          const data = await res.json();
-          setAuth(
-            data.telegramUser || { id: 123456789, first_name: 'Alex' },
-            data.userId,
-            data.token
-          );
-          if (data.balanceTon !== undefined) {
-            setBalance(data.balanceTon, data.balanceGram || 0);
-          }
+        if (process.env.NEXT_PUBLIC_STATIC_EXPORT !== 'true') {
+          const res = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              initData: initData || '',
+              ...(!initData && {
+                devUser: {
+                  id: 123456789,
+                  first_name: 'Alex',
+                  last_name: 'Volkov',
+                  username: 'developer',
+                },
+              }),
+            }),
+          });
+          if (res.ok) data = await res.json();
         }
-      } catch (err) {
-        console.error('Auth failed:', err);
+
+        if (!data) {
+          data = await handleDemoApi('auth', 'POST');
+        }
+
+        setAuth(
+          data.telegramUser || { id: 123456789, first_name: 'Alex' },
+          data.userId || 'user_dev',
+          data.token || 'demo'
+        );
+        if (data.balanceTon !== undefined) {
+          setBalance(data.balanceTon, data.balanceGram || 0);
+        }
+      } catch {
+        const fallback = await handleDemoApi<{
+          token: string;
+          userId: string;
+          telegramUser: { id: number; first_name: string; last_name?: string; username?: string };
+          balanceTon: number;
+          balanceGram: number;
+        }>('auth', 'POST');
+        setAuth(fallback.telegramUser, fallback.userId, fallback.token);
+        setBalance(fallback.balanceTon, fallback.balanceGram);
       } finally {
         setAuthDone(true);
         setLoading(false);
