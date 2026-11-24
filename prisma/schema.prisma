@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  telegramId   BigInt   @unique
+  username     String?
+  firstName    String
+  lastName     String?
+  avatarUrl    String?
+  walletAddress String?
+  balanceTon   Float    @default(0)
+  balanceGram  Float    @default(0)
+  referralCode String   @unique @default(cuid())
+
+  referredById String?
+  referredBy   User?    @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals    User[]   @relation("UserReferrals")
+
+  gifts        Gift[]
+  listings     Listing[]
+  offers       Offer[]
+  transactions Transaction[]
+
+  createdAt    DateTime @default(now())
+}
+
+model Gift {
+  id              String   @id @default(cuid())
+  name            String
+  collection      String
+  number          Int
+  imageUrl        String
+  animationUrl    String?
+  model           String
+  backdrop        String
+  symbol          String
+  modelRarity     Float
+  backdropRarity  Float
+  symbolRarity    Float
+  rarity          String   // "Common", "Uncommon", "Rare", "Epic", "Legendary"
+
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  listing         Listing?
+
+  createdAt       DateTime @default(now())
+}
+
+model Listing {
+  id          String   @id @default(cuid())
+
+  giftId      String   @unique
+  gift        Gift     @relation(fields: [giftId], references: [id], onDelete: Cascade)
+
+  sellerId    String
+  seller      User     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  priceTon    Float
+  priceGram   Float?
+  commission  Float
+  status      String   @default("active") // "active", "sold", "cancelled"
+
+  offers      Offer[]
+
+  buyerId     String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Offer {
+  id          String   @id @default(cuid())
+
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  buyerId     String
+  buyer       User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  amountTon   Float
+  amountGram  Float?
+  status      String   @default("pending") // "pending", "accepted", "rejected", "expired"
+  message     String?
+
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+}
+
+model Transaction {
+  id             String   @id @default(cuid())
+  type           String   // "purchase", "sale", "deposit", "withdrawal", "listing", "offer", "commission", "referral"
+
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount         Float
+  currency       String   // "TON", "GRAM"
+  status         String   @default("pending") // "pending", "completed", "failed"
+  txHash         String?
+  memo           String?
+  metadata       String?  // JSON string
+  relatedUserId  String?
+
+  createdAt      DateTime @default(now())
+}
