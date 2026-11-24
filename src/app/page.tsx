@@ -57,11 +57,11 @@ export default function HomePage() {
         }
 
         setAuth(
-          data.telegramUser || { id: 123456789, first_name: 'Alex' },
-          data.userId || 'user_dev',
-          data.token || 'demo'
+          data?.telegramUser || { id: 123456789, first_name: 'Alex' },
+          data?.userId || 'user_dev',
+          data?.token || 'demo'
         );
-        if (data.balanceTon !== undefined) {
+        if (data?.balanceTon !== undefined) {
           setBalance(data.balanceTon, data.balanceGram || 0);
         }
       } catch {
